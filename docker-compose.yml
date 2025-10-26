@@ -1,0 +1,88 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    networks:
+      vlan:
+        ipv4_address: 192.168.10.200
+    environment:
+      - OLLAMA_NUM_PARALLEL=1
+      - OLLAMA_MAX_QUEUE=64
+    volumes:
+      - ollama:/root/.ollama
+
+  ollama-init:
+    image: curlimages/curl:latest
+    networks:
+      vlan:
+        ipv4_address: 192.168.10.201
+    depends_on:
+      - ollama
+    restart: "no"
+    entrypoint:
+      - sh
+      - -c
+      - |
+        echo '⏳ Waiting for Ollama...'
+        retries=60
+        until [ "$$(curl -sS -o /dev/null -w '%{http_code}' http://192.168.10.200:11434 2>/dev/null)" != "000" ] || [ "$$retries" -le 0 ]; do
+          echo "Waiting for ollama... ($$retries)"
+          retries=$$((retries-1))
+          sleep 1
+        done
+        if [ "$$retries" -le 0 ]; then
+          echo "❌ Timed out waiting for Ollama" >&2
+          exit 1
+        fi
+        echo '⏳ Pulling models...'
+        curl -fsSL -X POST http://192.168.10.200:11434/api/pull -d '{"name":"gemma:2b"}' && \
+        curl -fsSL -X POST http://192.168.10.200:11434/api/pull -d '{"name":"mistral:7b-instruct-q4_K_M"}' && \
+        echo '✅ Models pulled successfully!'
+
+  llm-api:
+    build:
+      context: ./llm-api
+    networks:
+      vlan:
+        ipv4_address: 192.168.10.202
+    depends_on:
+      - ollama
+    environment:
+      - OLLAMA_HOST=http://192.168.10.200:11434
+      - OPENSEARCH_HOST=https://192.168.40.101:9200
+      - OPENSEARCH_USER=admin
+      - OPENSEARCH_PASS=FaraParole69
+    profiles: ["prod"]
+
+  # 👇 Dev mode service (same image but with live code + reload)
+  llm-api-dev:
+    build:
+      context: ./llm-api
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./llm-api:/app
+    networks:
+      vlan:
+        ipv4_address: 192.168.10.203
+    depends_on:
+      - ollama
+    environment:
+      - OLLAMA_HOST=http://192.168.10.200:11434
+      - OPENSEARCH_HOST=https://192.168.40.101:9200
+      - OPENSEARCH_USER=admin
+      - OPENSEARCH_PASS=FaraParole69
+    profiles: ["dev"]
+
+volumes:
+  ollama:
+
+networks:
+  vlan:
+    driver: macvlan
+    driver_opts:
+      parent: enp0s31f6
+    ipam:
+      config:
+        - subnet: 192.168.10.0/24
+          gateway: 192.168.10.1
+          ip_range: 192.168.10.200/29
