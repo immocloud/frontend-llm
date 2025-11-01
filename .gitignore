@@ -1,0 +1,4 @@
+logs/
+__pycache__/
+llm-api/__pycache__
+llm-api/__pycache__/main.cpython-311.pyc

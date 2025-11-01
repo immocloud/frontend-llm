@@ -1,0 +1,180 @@
+PUT _index_template/real-estate-template
+{
+  "index_patterns": ["real-estate-*"],
+  "template": {
+    "settings": {
+      "index": {
+        "knn": true,
+        "refresh_interval": "30s",
+        "mapping": {
+          "total_fields": { "limit": "2000" }
+        },
+        "number_of_shards": "2",
+        "number_of_replicas": "1",
+        "default_pipeline": "property-vectorizer-pipeline",
+        "analysis": {
+          "filter": {
+            "romanian_stop": {
+              "type": "stop",
+              "stopwords": "_romanian_"
+            },
+            "romanian_snowball": {
+              "type": "snowball",
+              "language": "Romanian"
+            }
+          },
+          "analyzer": {
+            "ro_analyzer": {
+              "tokenizer": "standard",
+              "filter": [
+                "lowercase",
+                "asciifolding",
+                "romanian_stop",
+                "romanian_snowball"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "mappings": {
+      "dynamic_templates": [
+        {
+          "disable_dynamic_attrs": {
+            "path_match": "attributes.*",
+            "mapping": { "type": "object", "enabled": false }
+          }
+        }
+      ],
+      "properties": {
+        "listing_vector": {
+          "type": "knn_vector",
+          "dimension": 1024
+        },
+        "geo_location": { "type": "geo_point" },
+        "visible": { "type": "boolean" },
+        "valid_from": { "type": "date" },
+        "processed_at": { "type": "date" },
+        "price": { "type": "long" },
+        "currency": { "type": "keyword" },
+        "location_1": { "type": "keyword" },
+        "location_2": { "type": "keyword" },
+        "location_3": { "type": "keyword" },
+        "name": { "type": "text", "analyzer": "ro_analyzer" },
+        "description": { "type": "text", "analyzer": "ro_analyzer" },
+        "driver_title": { "type": "text", "analyzer": "ro_analyzer" },
+        "categories": { "type": "keyword" },
+        "attributes": { "type": "object", "enabled": false },
+        "image_tags": { "type": "keyword" }
+      }
+    }
+  }
+}
+
+POST /_plugins/_ml/connectors/_create
+{
+  "name": "bge-m3-embedding",
+  "description": "Ollama BGE-M3 embedding connector",
+  "protocol": "http",
+  "version": "1",
+  "parameters": {
+    "model": "bge-m3",
+    "endpoint": "http://192.168.10.200:11434"
+  },
+  "credential": {
+    "openAI_key": "dummy"
+  },
+  "actions": [
+    {
+      "action_type": "predict",
+      "method": "POST",
+      "url": "${parameters.endpoint}/v1/embeddings",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "request_body": "{ \"input\": [\"${parameters.input}\"], \"model\": \"${parameters.model}\" }",
+      "pre_process_function": "return ['input': params.input];",
+      "post_process_function": "connector.post_process.openai.embedding"
+    }
+  ]
+}
+
+POST /_plugins/_ml/models/_register
+{
+  "name": "bge_m3_embedding_model",
+  "description": "Embedding model via BGE-M3 on Ollama",
+  "connector_id": "rjVsNJoB63K7COLaG9Jl",
+  "function_name": "remote"
+}
+
+POST /_plugins/_ml/models/sTVsNJoB63K7COLaZdL6/_deploy
+
+
+PUT _ingest/pipeline/property-vectorizer-pipeline
+{
+  "description": "Embed property listings using BGE-M3, continue on failure",
+  "processors": [
+    {
+      "text_embedding": {
+        "model_id": "sTVsNJoB63K7COLaZdL6",
+        "field_map": {
+          "description": "listing_vector"
+        },
+        "on_failure": [
+          {
+            "set": {
+              "field": "listing_vector",
+              "value": []
+            }
+          },
+          {
+            "set": {
+              "field": "embedding_status",
+              "value": "failed"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
+
+
+
+======================= frontend =======================
+
+POST /_plugins/_ml/connectors/_create
+
+{
+  "name": "ollama-llm",
+  "description": "Llama3 8B connector (no Painless at all)",
+  "protocol": "http",
+  "version": 1,
+  "parameters": {
+    "endpoint": "http://192.168.10.200:11434",
+    "model": "llama3:8b-instruct-q4_0"
+  },
+  "credential": {
+    "openAI_key": "dummy"
+  },
+  "actions": [
+    {
+      "action_type": "predict",
+      "method": "POST",
+      "url": "${parameters.endpoint}/v1/chat/completions",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "request_body": "{ \"model\": \"${parameters.model}\", \"messages\": ${parameters.messages}, \"temperature\": 0.2 }"
+    }
+  ]
+}
+
+POST /_plugins/_ml/models/_register
+
+{
+  "name": "bge_m3_embedding_model",
+  "description": "Embedding model via llama3 on Ollama",
+  "connector_id": "7DVXNZoB63K7COLavvmJ",
+  "function_name": "remote"
+}

@@ -37,8 +37,16 @@ services:
         echo '⏳ Pulling models...'
         curl -fsSL -X POST http://192.168.10.200:11434/api/pull -d '{"name":"gemma:2b"}' && \
         curl -fsSL -X POST http://192.168.10.200:11434/api/pull -d '{"name":"mistral:7b-instruct-q4_K_M"}' && \
-        echo '✅ Models pulled successfully!'
-
+        curl -fsSL -X POST http://192.168.10.200:11434/api/pull -d '{"name":"llama3:8b-instruct-q4_0"}' && \
+        curl -fsSL -X POST http://192.168.10.200:11434/api/pull -d '{"name":"gpt-oss:20b"}' && \
+        curl -fsSL -X POST http://192.168.10.200:11434/api/pull -d '{"name":"bge-m3:latest"}' && \
+        curl -fsSL -X POST http://192.168.10.200:11434/api/pull -d '{"name":"yxchia/paraphrase-multilingual-minilm-l12-v2:Q8_0"}' && \
+        echo '⏳ Downloading and importing RoLlama3-8b-Instruct Q8_0 GGUF...' && \
+        mkdir -p /root/.ollama/models && \
+        curl -L -o /root/.ollama/models/rollama3-8b-instruct-q8_0.gguf https://huggingface.co/NikolayKozloff/RoLlama3-8b-Instruct-Q8_0-GGUF/resolve/main/rollama3-8b-instruct-q8_0.gguf && \
+        echo 'FROM /root/.ollama/models/rollama3-8b-instruct-q8_0.gguf\nTEMPLATE "{{ .System }} {{ .Prompt }}"\nPARAMETER num_ctx 4096\nPARAMETER stop "<|eot_id|>"\nSYSTEM "You are a helpful Romanian AI assistant."' > /root/.ollama/models/Modelfile && \
+        curl -fsSL -X POST http://192.168.10.200:11434/api/create -d '{"name":"rollama3-8b-instruct:q8_0", "path":"/root/.ollama/models/Modelfile"}' && \
+        echo '✅ All models pulled and imported successfully!'
   llm-api:
     build:
       context: ./llm-api

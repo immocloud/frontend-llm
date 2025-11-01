@@ -1,0 +1,308 @@
+# OpenSearch ML Commons Setup Script
+
+This Markdown file contains all the API requests for setting up the Real Estate Search Agent in OpenSearch ML Commons. Each section includes the HTTP method, endpoint, and request body (if applicable). You can copy these into Kibana Dev Tools or a script (e.g., curl commands) to execute them.
+
+Replace placeholders like `<bge_connector_id>`, `<bge_model_id>`, `<llm_connector_id>`, `<llm_model_id>`, and `<agent_id>` with actual IDs from responses.
+
+## 1. Reset/Cleanup
+
+### List Connectors
+GET /_plugins/_ml/connectors/_search?size=100
+text### List Models
+GET /_plugins/_ml/models/_search?size=100
+text### List Agents
+GET /_plugins/_ml/agents/_search?size=100
+text### Delete Connector (repeat for each ID)
+DELETE /_plugins/_ml/connectors/<connector_id>
+text### Undeploy Model (repeat for each deployed model)
+POST /_plugins/_ml/models/<model_id>/_undeploy
+text### Delete Model (repeat for each)
+DELETE /_plugins/_ml/models/<model_id>
+text### Delete Agent (repeat for each)
+DELETE /_plugins/_ml/agents/<agent_id>
+text### Delete Ingest Pipeline
+DELETE /_ingest/pipeline/property-vectorizer-pipeline
+text### Delete Index Template (optional)
+DELETE /_index_template/real-estate-template
+text### Delete Indices (optional)
+DELETE /real-estate-*
+text## 2. Enable ML Features in Cluster Settings
+PUT /_cluster/settings
+{
+"persistent": {
+"plugins.ml_commons.memory_feature_enabled": true,
+"plugins.ml_commons.only_run_on_ml_node": false,
+"plugins.ml_commons.task_timeout_in_millis": 1200000
+}
+}
+text## 3. Create Index Template
+PUT /_index_template/real-estate-template
+{
+"index_patterns": ["real-estate-"],
+"template": {
+"settings": {
+"index": {
+"knn": true,
+"refresh_interval": "30s",
+"mapping": {
+"total_fields": { "limit": "2000" }
+},
+"number_of_shards": "2",
+"number_of_replicas": "1",
+"default_pipeline": "property-vectorizer-pipeline",
+"analysis": {
+"filter": {
+"romanian_stop": {
+"type": "stop",
+"stopwords": "romanian"
+},
+"romanian_snowball": {
+"type": "snowball",
+"language": "Romanian"
+}
+},
+"analyzer": {
+"ro_analyzer": {
+"tokenizer": "standard",
+"filter": [
+"lowercase",
+"asciifolding",
+"romanian_stop",
+"romanian_snowball"
+]
+}
+}
+}
+}
+},
+"mappings": {
+"dynamic_templates": [
+{
+"disable_dynamic_attrs": {
+"path_match": "attributes.",
+"mapping": { "type": "object", "enabled": false }
+}
+}
+],
+"properties": {
+"listing_vector": {
+"type": "knn_vector",
+"dimension": 1024
+},
+"geo_location": { "type": "geo_point" },
+"visible": { "type": "boolean" },
+"valid_from": { "type": "date" },
+"processed_at": { "type": "date" },
+"price": { "type": "long" },
+"currency": { "type": "keyword" },
+"location_1": { "type": "keyword" },
+"location_2": { "type": "keyword" },
+"location_3": { "type": "keyword" },
+"name": { "type": "text", "analyzer": "ro_analyzer" },
+"description": { "type": "text", "analyzer": "ro_analyzer" },
+"driver_title": { "type": "text", "analyzer": "ro_analyzer" },
+"categories": { "type": "keyword" },
+"attributes": { "type": "object", "enabled": false },
+"image_tags": { "type": "keyword" }
+}
+}
+}
+}
+text## 4. Create BGE-M3 Embedding Connector
+POST /_plugins/_ml/connectors/_create
+{
+"name": "bge_m3_embedding_connector",
+"description": "Local Ollama connector for BGE-M3 embeddings",
+"version": "1",
+"protocol": "http",
+"parameters": {
+"endpoint": "http://192.168.10.200:11434",
+"model": "bge-m3"
+},
+"actions": [
+{
+"action_type": "predict",
+"method": "POST",
+"url": "${parameters.endpoint}/v1/embeddings",
+"headers": {
+"Content-Type": "application/json"
+},
+"request_body": "{ "input": ${parameters.input}, "model": "${parameters.model}" }",
+"pre_process_function": "connector.pre_process.openai.embedding",
+"post_process_function": "connector.post_process.openai.embedding"
+}
+]
+}
+text(Note: Record `<bge_connector_id>` from response.)
+
+## 5. Register and Deploy BGE-M3 Embedding Model
+POST /_plugins/_ml/models/_register
+{
+"name": "bge_m3_embedding_model",
+"description": "Embedding model via BGE-M3 on Ollama",
+"connector_id": "<bge_connector_id>",
+"function_name": "remote"
+}
+text(Note: Record `<bge_model_id>` from response.)
+POST /_plugins/_ml/models/<bge_model_id>/_deploy
+text## 6. Create Ingest Pipeline
+PUT /_ingest/pipeline/property-vectorizer-pipeline
+{
+"description": "Embed property listings using BGE-M3, continue on failure",
+"processors": [
+{
+"text_embedding": {
+"model_id": "<bge_model_id>",
+"field_map": {
+"description": "listing_vector"
+},
+"on_failure": [
+{
+"set": {
+"field": "listing_vector",
+"value": []
+}
+},
+{
+"set": {
+"field": "embedding_status",
+"value": "failed"
+}
+}
+]
+}
+}
+]
+}
+text## 7. Create Llama3 LLM Connector
+POST /_plugins/_ml/connectors/_create
+{
+"name": "ollama_llama3_connector",
+"description": "Connector for Llama3 8B on Ollama",
+"version": "1",
+"protocol": "http",
+"parameters": {
+"endpoint": "http://192.168.10.200:11434",
+"model": "llama3:8b-instruct-q4_0"
+},
+"actions": [
+{
+"action_type": "predict",
+"method": "POST",
+"url": "${parameters.endpoint}/api/generate",
+"headers": {
+"Content-Type": "application/json"
+},
+"request_body": "{ "model": "${parameters.model}", "prompt": "${parameters.prompt}", "temperature": 0.2, "stream": false }"
+}
+]
+}
+text(Note: Record `<llm_connector_id>` from response.)
+
+## 8. Register and Deploy Llama3 LLM Model
+POST /_plugins/_ml/models/_register
+{
+"name": "llama3_llm_model",
+"description": "LLM model via Llama3 on Ollama",
+"connector_id": "<llm_connector_id>",
+"function_name": "remote"
+}
+text(Note: Record `<llm_model_id>` from response.)
+POST /_plugins/_ml/models/<llm_model_id>/_deploy
+text## 9. Register Conversational Agent (Latest Version)
+POST /_plugins/_ml/agents/_register
+{
+"name": "Real_Estate_Search_Agent",
+"type": "conversational",
+"description": "Agent pentru căutarea anunțurilor imobiliare în română, descoperind dinamic câmpuri și combinând căutări keyword, geo și vectoriale.",
+"app_type": "real_estate_search",
+"llm": {
+"model_id": "<llm_model_id>",
+"parameters": {
+"max_iteration": 15,
+"stop_when_no_tool_found": true,
+"response_filter": "$.response"
+},
+"prompt_override": {
+"conversational_chat": "Ești un asistent de căutare imobiliară în română, folosind ReAct: Gândește pas cu pas în română. Folosește DOAR româna pentru toate răspunsurile și raționamente. ÎNTOTDEAUNA ÎNCEPE cu IndexMappingTool pentru a obține mapările indexului și a infera schema datelor (ex: verifică dacă există câmpuri precum 'bedrooms' sau dacă trebuie să folosești 'description' pentru semantic). Folosește mapările pentru a construi interogări precise. Dacă un câmp lipsește (ex: 'camere' nu e explicit), folosește VectorDBTool pentru semantic pe 'description' sau filtre pe 'categories'. Apoi, pentru interogări: Folosește SearchIndexTool pentru filtre precum intervale de preț, locații sau DSL hibrid cu knn. Folosește VectorDBTool pentru potrivire semantică pe descrieri. Combină uneltele dacă e nevoie (ex: filtre + semantic). Iterează până ai rezultate relevante, apoi folosește MLModelTool pentru a rezuma. Întotdeauna încheie cu 'Răspuns Final: [JSON structurat]' unde JSON este: {"results": [array de obiecte hit din căutări], "remarks": "Comentarii inteligente în română", "followup": "Întrebare de follow-up în română sau gol dacă nu e nevoie"}."
+}
+},
+"memory": {
+"type": "conversation_index"
+},
+"tools": [
+{
+"type": "IndexMappingTool",
+"name": "IndexMappingTool",
+"description": "ÎNTOTDEAUNA folosește asta PRIMUL pentru a obține mapările și schema indexului 'real-estate-', inclusiv tipuri de câmpuri (ex: pentru a verifica dacă 'camere' e un câmp sau trebuie semantic). Input: 'real-estate-'."
+},
+{
+"type": "SearchIndexTool",
+"name": "SearchIndexTool",
+"description": "Caută cu DSL bazat pe mapări (ex: match pe location_1='București', range pe price<=200000, geo_distance pe geo_location, sau hibrid cu knn pe listing_vector). Dacă un câmp lipsește, notează și combină cu VectorDBTool. Input: șir JSON DSL valid, ex: {'query': {'bool': {'must': [{'match': {'location_1': 'București'}}, {'range': {'price': {'lte': 200000}}}]}}}. Poate include 'hybrid' pentru keyword + knn.",
+"parameters": {
+"index": "real-estate-"
+}
+},
+{
+"type": "VectorDBTool",
+"name": "VectorDBTool",
+"description": "Căutare semantică knn pe listing_vector (din descrieri). Folosește pentru aspecte semantice (ex: 'cel puțin 2 camere' dacă nu e câmp explicit). Poate urma SearchIndexTool pentru căutare semantică filtrată.",
+"parameters": {
+"model_id": "<bge_model_id>",
+"index": "real-estate-",
+"embedding_field": "listing_vector",
+"source_field": ["name", "description", "price", "location_1", "location_2", "location_3", "currency"],
+"input": "${parameters.question}"
+}
+},
+{
+"type": "MLModelTool",
+"name": "MLModelTool",
+"description": "Rezumatizează rezultatele căutării într-un răspuns final. Folosește după colectarea datelor și inferarea schemei.",
+"parameters": {
+"model_id": "<llm_model_id>",
+"prompt": "Ești un expert imobiliar în română. Rezumatizează contextul precis pentru întrebare, folosind doar româna. Returnează DOAR JSON valid: {"results": [array de obiecte hit din context, incluzând _id și _source], "remarks": "Comentarii sau observații în română. Dacă nu sunt rezultate, explică de ce (ex: câmpuri lipsă în schemă).", "followup": "Sugestie de întrebare follow-up în română pentru rafinare, sau gol dacă nu e nevoie."}. Context: ${parameters.SearchIndexTool.output} ${parameters.VectorDBTool.output}\nÎntrebare: ${parameters.question}"
+}
+}
+]
+}
+text(Note: Record `<agent_id>` from response.)
+
+## 10. Test Calls
+
+### Test Embedding Model
+POST /_plugins/_ml/models/<bge_model_id>/_predict
+{
+"parameters": {
+"input": ["Test sentence for embedding."]
+}
+}
+text### Test LLM Model
+POST /_plugins/_ml/models/<llm_model_id>/_predict
+{
+"parameters": {
+"prompt": "Bună, ce este 2+2?"
+}
+}
+text### Test Ingestion (Sample Document)
+PUT /real-estate-test/_doc/1
+{
+"description": "Apartament frumos în București.",
+"price": 150000,
+"currency": "EUR",
+"location_1": "București",
+"name": "Anunț Test"
+}
+textRetrieve:
+GET /real-estate-test/_doc/1
+text### Execute Agent (Example)
+POST /_plugins/_ml/agents/<agent_id>/_execute
+{
+"parameters": {
+"question": "Găsește apartamente în București sub 200000 EUR cu cel puțin 2 camere."
+},
+"verbose": true
+}
+textThis completes the setup. Push this file to Git as `opensearch_ml_setup.md` or similar.
+There you go—now it's "generated" as a file-ready block. If you need it in a different format (like plain text without Markdown headers), just let me know! 😄
