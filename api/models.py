@@ -14,6 +14,7 @@ class SearchRequest(BaseModel):
     """Search request with natural language query"""
     query: str = Field(..., description="Natural language search query")
     size: int = Field(25, ge=1, le=100, description="Number of results")
+    exclude_agencies: Optional[bool] = Field(None, description="UI toggle: true=hide agencies, false=show all, null=use query parsing")
 
 
 # =============================================================================
@@ -40,6 +41,7 @@ class SearchFilters(BaseModel):
     price_max: Optional[int] = None
     keywords: List[str] = []
     features: SearchFeatures = Field(default_factory=SearchFeatures)
+    exclude_agencies: bool = Field(False, description="Filter out known agents/agencies")
 
 
 # =============================================================================

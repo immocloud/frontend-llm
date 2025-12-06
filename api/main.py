@@ -117,7 +117,8 @@ async def search_listings(
             user_query=request.query,
             user_id=user_id,
             session_id=session_id,
-            size=request.size
+            size=request.size,
+            exclude_agencies_override=request.exclude_agencies  # UI toggle takes precedence
         )
         
         # Convert parsed to model
@@ -132,7 +133,8 @@ async def search_listings(
             price_min=parsed.get("price_min"),
             price_max=parsed.get("price_max"),
             keywords=parsed.get("keywords", []),
-            features=SearchFeatures(**features) if features else SearchFeatures()
+            features=SearchFeatures(**features) if features else SearchFeatures(),
+            exclude_agencies=parsed.get("exclude_agencies", False)
         )
         
         # Results are already SearchResult objects from api/search.py

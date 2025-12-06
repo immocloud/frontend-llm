@@ -264,6 +264,15 @@ RULES:
    - "WANT" = user wants this feature
    - "EXCLUDE" = user doesn't want this
    - null = not mentioned
+4. For exclude_agencies:
+   - Set to true if user says: "fara agentii", "doar particulari", "nu agenti", "private only", "no agents", "fără agenție"
+   - Set to false otherwise
+
+EXAMPLES:
+- "apartament Titan fara agentii" -> exclude_agencies: true
+- "doar particulari 2 camere" -> exclude_agencies: true
+- "no agents please" -> exclude_agencies: true
+- "apartament Titan 2 camere" -> exclude_agencies: false
 
 OUTPUT FORMAT (JSON only):
 {{
@@ -281,7 +290,8 @@ OUTPUT FORMAT (JSON only):
     "parcare": "WANT" or "EXCLUDE" or null,
     "mobilat": "WANT" or "EXCLUDE" or null,
     "centrala": "WANT" or "EXCLUDE" or null
-  }}
+  }},
+  "exclude_agencies": true or false
 }}
 
 Parse and output ONLY JSON:'''
@@ -317,14 +327,14 @@ Parse and output ONLY JSON:'''
         result = result.replace('\n', ' ')
         
         parsed = json.loads(result)
-        return validate_parsed_result(parsed, current_context)
+        return validate_parsed_result(parsed, current_context, user_query)
         
     except Exception as e:
         print(f"LLM parsing error: {e}")
         return current_context
 
 
-def validate_parsed_result(parsed: Dict, context: Dict) -> Dict:
+def validate_parsed_result(parsed: Dict, context: Dict, user_query: str = "") -> Dict:
     """Validate and normalize LLM output"""
     result = deepcopy(context)
     
@@ -363,6 +373,15 @@ def validate_parsed_result(parsed: Dict, context: Dict) -> Dict:
                 result["features"][f] = val
             elif val is None and f in parsed["features"]:
                 result["features"][f] = None
+    
+    # Exclude agencies filter - check LLM output AND original query keywords
+    exclude_keywords = ["fara agentii", "fără agenții", "doar particulari", "nu agenti",
+                        "private only", "no agents", "fara agentie", "fără agenție",
+                        "particulari", "fara agenti"]
+    query_lower = user_query.lower() if user_query else ""
+    
+    if parsed.get("exclude_agencies") is True or any(kw in query_lower for kw in exclude_keywords):
+        result["exclude_agencies"] = True
     
     return result
 
@@ -558,7 +577,7 @@ def format_result(hit: Dict, max_score: float) -> SearchResult:
         title=src.get("driver_title") or src.get("name") or "No title",
         description=desc,
         price=src.get("price"),
-        currency=src.get("currency", "EUR"),
+        currency=src.get("currency") or "EUR",
         location=location,
         categories=src.get("categories", []) or [],
         surface=surface,
@@ -661,15 +680,28 @@ def search(
     user_query: str,
     user_id: str,
     session_id: str,
-    size: int = 25
+    size: int = 25,
+    exclude_agencies_override: Optional[bool] = None
 ) -> Dict:
-    """Main search function"""
+    """
+    Main search function
+    
+    Args:
+        exclude_agencies_override: UI toggle override
+            - None: use query parsing (natural language detection)
+            - True: always exclude agencies  
+            - False: always include agencies
+    """
     
     # Load memory
     memory = load_memory(user_id, session_id)
     
     # Parse with LLM
     parsed = parse_query_with_llm(user_query, memory)
+    
+    # UI toggle overrides query parsing
+    if exclude_agencies_override is not None:
+        parsed["exclude_agencies"] = exclude_agencies_override
     
     # Save updated memory
     save_memory(user_id, session_id, parsed, user_query)
@@ -689,6 +721,14 @@ def search(
     phones = [r.phone for r in formatted]
     agent_lookup = lookup_agents(phones)
     formatted = enrich_with_agent_info(formatted, agent_lookup)
+    
+    # Apply exclude_agencies filter (post-filter after enrichment)
+    if parsed.get("exclude_agencies"):
+        original_count = len(formatted)
+        formatted = [r for r in formatted if not r.is_agency]
+        excluded_count = original_count - len(formatted)
+        if excluded_count > 0:
+            print(f"Excluded {excluded_count} agency listings")
     
     return {
         "parsed": parsed,
