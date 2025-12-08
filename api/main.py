@@ -144,7 +144,9 @@ async def search_listings(
             total=result.get("total", 0),
             results=result.get("results", []),
             session_id=session_id,
-            user_id=user_id
+            user_id=user_id,
+            message=result.get("message", ""),
+            message_type=result.get("message_type", "results")
         )
         
     except Exception as e:

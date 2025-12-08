@@ -242,6 +242,119 @@ def ensure_memory_index():
 
 
 # =============================================================================
+# ASSISTANT MESSAGE GENERATION
+# =============================================================================
+
+def generate_assistant_message(parsed: Dict, total: int, query: str) -> tuple[str, str]:
+    """
+    Generate a friendly assistant message based on search results.
+    Returns (message, message_type)
+    """
+    import random
+    
+    # Build context parts
+    location_parts = []
+    if parsed.get("location"):
+        location_parts.append(parsed["location"])
+    if parsed.get("city"):
+        location_parts.append(parsed["city"])
+    location_str = ", ".join(location_parts) if location_parts else None
+    
+    property_type = parsed.get("property_type", "proprietăți")
+    if property_type == "Apartamente":
+        property_type = "apartamente"
+    elif property_type == "Case":
+        property_type = "case"
+    elif property_type == "Garsoniera":
+        property_type = "garsoniere"
+    else:
+        property_type = "proprietăți"
+    
+    transaction = parsed.get("transaction")
+    if transaction == "Inchiriere":
+        transaction_str = "de închiriat"
+    elif transaction == "Vanzare":
+        transaction_str = "de vânzare"
+    else:
+        transaction_str = ""
+    
+    # Price range
+    price_parts = []
+    if parsed.get("price_min") and parsed.get("price_max"):
+        price_parts.append(f"între {parsed['price_min']} și {parsed['price_max']}€")
+    elif parsed.get("price_min"):
+        price_parts.append(f"de la {parsed['price_min']}€")
+    elif parsed.get("price_max"):
+        price_parts.append(f"până la {parsed['price_max']}€")
+    price_str = price_parts[0] if price_parts else None
+    
+    # Rooms
+    rooms = parsed.get("rooms")
+    rooms_str = f"cu {rooms} camere" if rooms else None
+    
+    # Features
+    features = parsed.get("features", {})
+    feature_strs = []
+    if features.get("animale") == "WANT":
+        feature_strs.append("pet friendly")
+    if features.get("parcare") == "WANT":
+        feature_strs.append("cu parcare")
+    if features.get("mobilat") == "WANT":
+        feature_strs.append("mobilat")
+    
+    # Build the message
+    if total == 0:
+        # No results
+        no_result_messages = [
+            f"Nu am găsit {property_type} {transaction_str} care să corespundă criteriilor tale. Încearcă să lărgești aria de căutare sau să ajustezi filtrele.",
+            f"Hmm, nu am găsit nimic. Poate încerci cu alte criterii sau într-o altă zonă?",
+            f"Din păcate, nu există {property_type} disponibile cu aceste filtre. Vrei să încercăm altceva?",
+        ]
+        return random.choice(no_result_messages), "no_results"
+    
+    # Has results - build natural message
+    intro_phrases = [
+        f"Am găsit {total} {property_type}",
+        f"Sunt {total} {property_type} disponibile",
+        f"Iată {total} {property_type}",
+        f"Am identificat {total} {property_type}",
+    ]
+    
+    message_parts = [random.choice(intro_phrases)]
+    
+    if transaction_str:
+        message_parts.append(transaction_str)
+    if location_str:
+        message_parts.append(f"în {location_str}")
+    if price_str:
+        message_parts.append(price_str)
+    if rooms_str:
+        message_parts.append(rooms_str)
+    if feature_strs:
+        message_parts.append(", ".join(feature_strs))
+    
+    message = " ".join(message_parts) + "."
+    
+    # Add helpful suggestions for refinement
+    if total > 50:
+        suggestions = [
+            " Poți rafina căutarea specificând zona exactă sau intervalul de preț.",
+            " Încearcă să adaugi mai multe detalii pentru rezultate mai precise.",
+            " Spune-mi dacă vrei să filtrez după numărul de camere sau alte facilități.",
+        ]
+        message += random.choice(suggestions)
+    elif total > 0 and total <= 10:
+        encouragements = [
+            " Arată bine! Verifică rezultatele de mai jos.",
+            " Câteva opțiuni interesante! 👇",
+            " Iată ce am găsit pentru tine.",
+        ]
+        message += random.choice(encouragements)
+    
+    return message, "results"
+
+
+# =============================================================================
 # LLM PARSING
 # =============================================================================
 
@@ -734,9 +847,14 @@ def search(
         if excluded_count > 0:
             print(f"Excluded {excluded_count} agency listings")
     
+    # Generate assistant message
+    message, message_type = generate_assistant_message(parsed, total, user_query)
+    
     return {
         "parsed": parsed,
         "total": total,
         "max_score": max_score,
         "results": formatted,
+        "message": message,
+        "message_type": message_type,
     }

@@ -110,6 +110,9 @@ class SearchResponse(BaseModel):
     results: List[SearchResult]
     session_id: str
     user_id: str
+    # Chat-like response message from the assistant
+    message: str = Field("", description="Natural language response summarizing the search")
+    message_type: str = Field("results", description="Type: results, clarification, no_results, error")
 
 
 class SessionInfo(BaseModel):
