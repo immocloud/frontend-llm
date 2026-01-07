@@ -6,13 +6,13 @@ import requests
 from requests.auth import HTTPBasicAuth
 
 # Configuration
-OPENSEARCH_HOST = os.environ.get("OPENSEARCH_HOST", "https://192.168.40.101:9200")
+OPENSEARCH_HOST = os.environ.get("OPENSEARCH_HOST", "https://192.168.80.199:9200")
 OPENSEARCH_USER = os.environ.get("OPENSEARCH_USER", "admin")
 OPENSEARCH_PASS = os.environ.get("OPENSEARCH_PASS", "FaraParole69")
 VERIFY = False  # User requested to ignore SSL verification issues implicitly by context
 
-# Ollama details (updated to BGE-M3 on 10.115)
-OLLAMA_ENDPOINT = "http://192.168.10.115:11434"
+# Ollama details (updated to BGE-M3 on 80.197)
+OLLAMA_ENDPOINT = "http://192.168.80.197:11434"
 OLLAMA_MODEL = "bge-m3"
 
 CONNECTOR_NAME = "bge-m3-embedding"

@@ -761,15 +761,25 @@ def format_result(hit: Dict, max_score: float) -> SearchResult:
 
 def execute_search(query: Dict) -> Dict:
     """Execute search against OpenSearch"""
+    import logging
+    logger = logging.getLogger("smart-search-api")
+    
+    url = f"{settings.opensearch_url}/{settings.opensearch_index}/_search"
+    logger.info(f"Executing OpenSearch Query to: {url}")
+    logger.info(f"OS Query Payload: {json.dumps(query)}")
+
     response = requests.post(
-        f"{settings.opensearch_url}/{settings.opensearch_index}/_search",
+        url,
         json=query,
         auth=settings.opensearch_auth,
         verify=settings.opensearch_verify_ssl,
         timeout=10
     )
+    
     if response.status_code != 200:
-        raise Exception(f"OpenSearch error: {response.status_code}")
+        logger.error(f"OpenSearch Error {response.status_code}: {response.text}")
+        raise Exception(f"OpenSearch error: {response.status_code} - {response.text[:200]}")
+        
     return response.json()
 
 

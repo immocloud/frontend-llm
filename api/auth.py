@@ -2,6 +2,7 @@
 # Validates JWT tokens and extracts user information for DLS
 
 import httpx
+import logging
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 from fastapi import Depends, HTTPException, status
@@ -10,6 +11,10 @@ from jose import jwt, JWTError, ExpiredSignatureError
 from pydantic import BaseModel
 
 from .config import settings
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("keycloak-auth")
 
 # =============================================================================
 # MODELS
@@ -88,10 +93,17 @@ def get_signing_key(jwks: Dict[str, Any], token: str) -> Optional[Dict]:
 async def decode_and_validate_token(token: str) -> TokenUser:
     """Decode and validate a Keycloak JWT token"""
     
+    logger.info(f"Validating token: {token[:10]}...{token[-10:]}")
+    
     jwks = await get_jwks()
     signing_key = get_signing_key(jwks, token)
     
     if not signing_key:
+        logger.error("No matching signing key found in JWKS")
+        logger.error(f"Available tokens KIDs: {[k.get('kid') for k in jwks.get('keys', [])]}")
+        unverified_header = jwt.get_unverified_header(token)
+        logger.error(f"Token header: {unverified_header}")
+        
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token: signing key not found"
@@ -100,6 +112,8 @@ async def decode_and_validate_token(token: str) -> TokenUser:
     try:
         # Note: verify_aud is disabled because tokens may be issued for different clients
         # OpenSearch also has verify_audience: false in its config
+        logger.info(f"Decoding with issuer: {settings.keycloak_issuer}")
+        
         payload = jwt.decode(
             token,
             signing_key,
@@ -110,10 +124,13 @@ async def decode_and_validate_token(token: str) -> TokenUser:
         
         user_id = payload.get("sub")
         if not user_id:
+            logger.error("Token missing 'sub' claim")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token: missing subject"
             )
+        
+        logger.info(f"Token valid for user: {payload.get('preferred_username')} ({user_id})")
         
         # Extract roles
         roles = []
@@ -134,8 +151,18 @@ async def decode_and_validate_token(token: str) -> TokenUser:
         )
         
     except ExpiredSignatureError:
+        logger.warning(f"Token expired. Token: {token[:20]}...{token[-20:]}")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
     except JWTError as e:
+        logger.error(f"JWT Validation Error: {e}")
+        try:
+             # Try to decode without verification to see what's wrong (debug only)
+            unverified = jwt.get_unverified_claims(token)
+            logger.error(f"Unverified claims: {unverified}")
+            logger.error(f"Expected issuer: {settings.keycloak_issuer}")
+        except Exception as ex:
+            logger.error(f"Failed to decode unverified claims: {ex}")
+            pass
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid token: {e}")
 
 
@@ -152,11 +179,14 @@ async def get_current_user(
     """Get current authenticated user from JWT"""
     
     if not settings.auth_enabled:
+        logger.debug("Auth disabled, returning anonymous user")
         return AnonymousUser()
     
     if not credentials:
         if settings.allow_anonymous:
+            logger.debug("No credentials, but anonymous allowed")
             return AnonymousUser()
+        logger.warning("No credentials provided and anonymous access disabled")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required",

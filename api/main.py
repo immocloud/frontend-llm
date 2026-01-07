@@ -25,6 +25,11 @@ from .search import (
 from .normalize_data import normalize_phone
 from datetime import datetime
 import json
+import logging
+
+# Setup Logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("smart-search-api")
 
 
 # =============================================================================
@@ -115,6 +120,16 @@ async def search_listings(
     
     user_id = get_user_id_for_dls(user)
     
+    # DEBUG LOGGING
+    logger.info(f"--- SEARCH START ---")
+    logger.info(f"User: {user_id} ({user.username})")
+    logger.info(f"Query: {request.query}")
+    logger.info(f"Config: OS={settings.opensearch_url} | LLM={settings.ollama_url}")
+    if user.raw_token:
+        logger.info(f"JWT: {user.raw_token[:15]}...{user.raw_token[-10:]}")
+    else:
+        logger.debug("No JWT token present")
+
     try:
         result = search(
             user_query=request.query,
@@ -155,6 +170,8 @@ async def search_listings(
         )
         
     except Exception as e:
+        logger.error(f"!! SEARCH EXCEPTION !!: {str(e)}", exc_info=True)
+        # Import traceback only if needed
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

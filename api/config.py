@@ -16,10 +16,10 @@ class Settings(BaseSettings):
     auth_enabled: bool = False
     allow_anonymous: bool = True
     
-    keycloak_url: str = "https://keycloak.example.com"
+    keycloak_url: str = "https://auth.immocloud.ro"
     keycloak_internal_url: Optional[str] = None
-    keycloak_realm: str = "master"
-    keycloak_client_id: str = "real-estate-search"
+    keycloak_realm: str = "immocloud"
+    keycloak_client_id: str = "immo-search"
     
     @property
     def keycloak_issuer(self) -> str:
@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     # ==========================================================================
     # OPENSEARCH
     # ==========================================================================
-    opensearch_url: str = "https://192.168.40.101:9200"
+    opensearch_url: str = "https://192.168.80.199:9200"
     opensearch_user: str = "admin"
     opensearch_pass: str = "FaraParole69"
     opensearch_index: str = "real-estate-*"
@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     memory_index: str = "search-conversations"
     
     # Embedding model for neural search
-    embedding_model_id: str = "RP2W5ZoB-XLRYbYP-LKJ"
+    embedding_model_id: str = "NV1NjpsB_9h2UAIWX3NH"
     
     @property
     def opensearch_auth(self) -> tuple:
@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     # ==========================================================================
     # LLM / OLLAMA
     # ==========================================================================
-    ollama_url: str = "http://192.168.10.115:11434"
+    ollama_url: str = "http://192.168.80.197:11434"
     ollama_model: str = "gpt-oss:20b-cloud"
     ollama_timeout: int = 120
     admin_api_key: str = "secret-admin-key"

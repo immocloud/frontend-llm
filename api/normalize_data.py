@@ -7,7 +7,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 # Configuration
-OPENSEARCH_URL = "https://192.168.40.101:9200"
+OPENSEARCH_URL = "https://192.168.80.199:9200"
 AUTH = ("admin", "FaraParole69")
 INDEX_PATTERN = "real-estate-*"
 BATCH_SIZE = 500

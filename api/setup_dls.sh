@@ -15,7 +15,7 @@
 set -e
 
 # Configuration - adjust these
-OPENSEARCH_URL="${OPENSEARCH_URL:-https://192.168.40.101:9200}"
+OPENSEARCH_URL="${OPENSEARCH_URL:-https://192.168.80.199:9200}"
 OPENSEARCH_USER="${OPENSEARCH_USER:-admin}"
 OPENSEARCH_PASS="${OPENSEARCH_PASS:-FaraParole69}"
 KEYCLOAK_URL="${KEYCLOAK_URL:-https://keycloak.example.com}"

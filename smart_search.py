@@ -20,7 +20,7 @@ requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 OLLAMA_URL = "http://192.168.10.115:11434"
 OLLAMA_MODEL = "gpt-oss:20b-cloud"
-OPENSEARCH_URL = "https://192.168.40.101:9200"
+OPENSEARCH_URL = "https://192.168.80.199:9200"
 OPENSEARCH_AUTH = ("admin", "FaraParole69")
 INDEX_PATTERN = "real-estate-*"
 EMBEDDING_MODEL_ID = "RP2W5ZoB-XLRYbYP-LKJ"

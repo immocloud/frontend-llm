@@ -10,7 +10,7 @@ import requests
 
 # ------------------- CONFIG -------------------
 
-OPENSEARCH_HOST = os.environ.get("OPENSEARCH_HOST", "https://192.168.40.101:9200")
+OPENSEARCH_HOST = os.environ.get("OPENSEARCH_HOST", "https://192.168.80.199:9200")
 OPENSEARCH_USER = os.environ.get("OPENSEARCH_USER", "admin")
 OPENSEARCH_PASS = os.environ.get("OPENSEARCH_PASS", "FaraParole69")
 

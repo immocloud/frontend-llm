@@ -13,7 +13,7 @@ import requests
 from requests.auth import HTTPBasicAuth
 
 # OpenSearch config
-OPENSEARCH_HOST = "https://192.168.40.101:9200"
+OPENSEARCH_HOST = "https://192.168.80.199:9200"
 OPENSEARCH_AUTH = HTTPBasicAuth("admin", "FaraParole69")
 VERIFY_SSL = False
 

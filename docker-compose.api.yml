@@ -12,22 +12,22 @@ services:
       - "8000:8000"
     environment:
       # OpenSearch Configuration
-      OPENSEARCH_HOST: ${OPENSEARCH_HOST:-192.168.40.101}
+      OPENSEARCH_HOST: ${OPENSEARCH_HOST:-192.168.80.199}
       OPENSEARCH_PORT: ${OPENSEARCH_PORT:-9200}
       OPENSEARCH_USER: ${OPENSEARCH_USER:-admin}
       OPENSEARCH_PASSWORD: ${OPENSEARCH_PASSWORD:-FaraParole69}
       
       # LLM Configuration (Ollama)
-      LLM_BASE_URL: ${LLM_BASE_URL:-http://192.168.10.115:11434}
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://192.168.80.197:11434}
       LLM_MODEL: ${LLM_MODEL:-gpt-oss:20b-cloud}
       
       # Embedding Model (BGE-M3 in OpenSearch)
-      EMBEDDING_MODEL_ID: ${EMBEDDING_MODEL_ID:-RP2W5ZoB-XLRYbYP-LKJ}
+      EMBEDDING_MODEL_ID: ${EMBEDDING_MODEL_ID:-NV1NjpsB_9h2UAIWX3NH}
       
       # Keycloak Authentication
       AUTH_ENABLED: ${AUTH_ENABLED:-true}
       KEYCLOAK_URL: ${KEYCLOAK_URL:-https://auth.immocloud.ro}
-      KEYCLOAK_INTERNAL_URL: http://auth-keycloak-1:8080
+      KEYCLOAK_INTERNAL_URL: https://auth.immocloud.ro
       KEYCLOAK_REALM: ${KEYCLOAK_REALM:-immocloud}
       KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-immo-search}
       KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-kiytWUd0qXBHizJkRdRD6Fv8AZ5L3mmo}
@@ -40,9 +40,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    mac_address: 02:42:ac:80:01:22
     networks:
-      - search-network
-      - imo_network
+      search-network: {}
+      vlan80:
+        ipv4_address: 192.168.80.22
     logging:
       driver: "json-file"
       options:
@@ -52,5 +54,5 @@ services:
 networks:
   search-network:
     driver: bridge
-  imo_network:
+  vlan80:
     external: true
