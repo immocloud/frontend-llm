@@ -780,8 +780,11 @@ def execute_search(query: Dict) -> Dict:
     if response.status_code != 200:
         logger.error(f"OpenSearch Error {response.status_code}: {response.text}")
         raise Exception(f"OpenSearch error: {response.status_code} - {response.text[:200]}")
+    
+    result = response.json()
+    logger.info(f"OpenSearch Response Structure: hits={len(result.get('hits', {}).get('hits', []))}, total={result.get('hits', {}).get('total', {}).get('value', 0)}, took={result.get('took', 0)}ms")
         
-    return response.json()
+    return result
 
 
 def lookup_agents(phones: List[str]) -> Dict[str, Dict]:
