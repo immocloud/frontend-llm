@@ -2,7 +2,15 @@
 
 Natural language search for Romanian real estate powered by LLM query parsing and OpenSearch hybrid search.
 
+## Server Deployment
+
+**All repos are located at:** `/home/vlad/repos/[repo-name]` on all servers
+
+```bash
+# On 192.168.80.198 (Search API server)
+cd /home/vlad/repos/frontend-llm
 docker-compose -f docker-compose.api.yml up --build -d
+```
 
 ## Features
 

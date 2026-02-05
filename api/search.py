@@ -782,7 +782,20 @@ def execute_search(query: Dict) -> Dict:
         raise Exception(f"OpenSearch error: {response.status_code} - {response.text[:200]}")
     
     result = response.json()
-    logger.info(f"OpenSearch Response Structure: hits={len(result.get('hits', {}).get('hits', []))}, total={result.get('hits', {}).get('total', {}).get('value', 0)}, took={result.get('took', 0)}ms")
+    hits_data = result.get('hits', {})
+    hits_list = hits_data.get('hits', [])
+    total_value = hits_data.get('total', {}).get('value', 0)
+    
+    logger.info(f"OpenSearch Response Structure: hits={len(hits_list)}, total={total_value}, took={result.get('took', 0)}ms")
+    
+    # Debug: Log first hit if available
+    if hits_list:
+        logger.info(f"First hit sample: {hits_list[0].get('_id', 'NO_ID')}")
+    else:
+        logger.warning(f"NO HITS RETURNED! Total count: {total_value}, but hits array is empty")
+        # Log the full response for debugging
+        logger.warning(f"Full response keys: {list(result.keys())}")
+        logger.warning(f"Hits structure: {list(hits_data.keys())}")
         
     return result
 
