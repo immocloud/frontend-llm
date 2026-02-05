@@ -890,8 +890,12 @@ def search(
     total = results.get("hits", {}).get("total", {}).get("value", 0)
     max_score = results.get("hits", {}).get("max_score") or 1.0
     
+    logger.info(f"OpenSearch returned {len(hits)} hits out of {total} total")
+    
     # Format results
     formatted = [format_result(hit, max_score) for hit in hits]
+    
+    logger.info(f"Formatted {len(formatted)} results")
     
     # Cross-index lookup: enrich with agent info (For UI labels Only)
     # NOTE: Disabled - is_agent field now comes directly from main index via Logstash
