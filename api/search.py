@@ -775,9 +775,16 @@ def format_result(hit: Dict, max_score: float) -> SearchResult:
 def execute_search(query: Dict) -> Dict:
     """Execute search against OpenSearch"""
     import logging
+    from datetime import datetime
     logger = logging.getLogger("smart-search-api")
     
-    url = f"{settings.opensearch_url}/{settings.opensearch_index}/_search"
+    # WORKAROUND: OpenSearch 3.4 bug with knn.derived_source.enabled and multi-index searches
+    # Returns 0 hits when querying multiple indices with _source enabled
+    # Use only today's index for now (single index works correctly)
+    today = datetime.now().strftime("%Y.%m.%d")
+    index_pattern = f"real-estate-{today}"
+    
+    url = f"{settings.opensearch_url}/{index_pattern}/_search"
     logger.info(f"Executing OpenSearch Query to: {url}")
     logger.info(f"OS Query Payload: {json.dumps(query)}")
 
