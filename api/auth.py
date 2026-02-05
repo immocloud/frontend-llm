@@ -100,13 +100,16 @@ async def decode_and_validate_token(token: str) -> TokenUser:
     
     if not signing_key:
         logger.error("No matching signing key found in JWKS")
-        logger.error(f"Available tokens KIDs: {[k.get('kid') for k in jwks.get('keys', [])]}")
-        unverified_header = jwt.get_unverified_header(token)
-        logger.error(f"Token header: {unverified_header}")
+        logger.error(f"Available token KIDs: {[k.get('kid') for k in jwks.get('keys', [])]}")
+        try:
+            unverified_header = jwt.get_unverified_header(token)
+            logger.error(f"Token header: {unverified_header}")
+        except JWTError as e:
+            logger.error(f"Invalid token format: {e}")
         
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token: signing key not found"
+            detail="Invalid token: signing key not found or malformed token"
         )
     
     try:
