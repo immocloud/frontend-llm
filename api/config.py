@@ -43,8 +43,8 @@ class Settings(BaseSettings):
     # Memory/sessions index
     memory_index: str = "search-conversations"
     
-    # Embedding model for neural search
-    embedding_model_id: str = "NV1NjpsB_9h2UAIWX3NH"
+    # Embedding model for neural search (OVH BGE-M3)
+    embedding_model_id: str = "RP2W5ZoB-XLRYbYP-LKJ"
     
     @property
     def opensearch_auth(self) -> tuple:

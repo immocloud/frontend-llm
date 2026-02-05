@@ -21,12 +21,12 @@ services:
       LLM_BASE_URL: ${LLM_BASE_URL:-http://192.168.80.197:11434}
       LLM_MODEL: ${LLM_MODEL:-gpt-oss:20b-cloud}
       
-      # Embedding Model (BGE-M3 in OpenSearch)
-      EMBEDDING_MODEL_ID: ${EMBEDDING_MODEL_ID:-NV1NjpsB_9h2UAIWX3NH}
+      # Embedding Model (BGE-M3 OVH in OpenSearch)
+      EMBEDDING_MODEL_ID: ${EMBEDDING_MODEL_ID:-RP2W5ZoB-XLRYbYP-LKJ}
       
       # Keycloak Authentication
       AUTH_ENABLED: ${AUTH_ENABLED:-true}
-      ALLOW_ANONYMOUS: ${ALLOW_ANONYMOUS:-true}
+      ALLOW_ANONYMOUS: ${ALLOW_ANONYMOUS:-false}
       KEYCLOAK_URL: ${KEYCLOAK_URL:-https://auth.immocloud.ro}
       KEYCLOAK_INTERNAL_URL: https://auth.immocloud.ro
       KEYCLOAK_REALM: ${KEYCLOAK_REALM:-immocloud}
