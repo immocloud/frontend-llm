@@ -26,6 +26,7 @@ services:
       
       # Keycloak Authentication
       AUTH_ENABLED: ${AUTH_ENABLED:-true}
+      ALLOW_ANONYMOUS: ${ALLOW_ANONYMOUS:-true}
       KEYCLOAK_URL: ${KEYCLOAK_URL:-https://auth.immocloud.ro}
       KEYCLOAK_INTERNAL_URL: https://auth.immocloud.ro
       KEYCLOAK_REALM: ${KEYCLOAK_REALM:-immocloud}
