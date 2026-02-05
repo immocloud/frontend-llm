@@ -674,6 +674,16 @@ def build_opensearch_query(parsed: Dict, size: int = 25, offset: int = 0) -> Dic
         })
     
     # Build final query
+    # NOTE: Using "_source": false + "fields" to work around OpenSearch 3.4 knn.derived_source bug
+    # that returns 0 hits on multi-index searches with _source enabled
+    field_list = [
+        "driver_title", "name", "description", "price", "currency",
+        "location_1", "location_2", "location_3", "coordinates",
+        "ad_url", "ad_id", "categories", "attributes",
+        "src_images", "images", "decrypted_phone", "source", "ad_source",
+        "valid_from", "user_name", "is_agent", "surface"
+    ]
+    
     query = {
         "size": size,
         "from": offset,
@@ -682,13 +692,8 @@ def build_opensearch_query(parsed: Dict, size: int = 25, offset: int = 0) -> Dic
                 "must": must if must else [{"match_all": {}}],
             }
         },
-        "_source": [
-            "driver_title", "name", "description", "price", "currency",
-            "location_1", "location_2", "location_3", "coordinates",
-            "ad_url", "ad_id", "categories", "attributes",
-            "src_images", "images", "decrypted_phone", "source", "ad_source",
-            "valid_from", "user_name", "is_agent"
-        ]
+        "_source": False,
+        "fields": field_list
     }
     
     if should:
@@ -704,36 +709,64 @@ def build_opensearch_query(parsed: Dict, size: int = 25, offset: int = 0) -> Dic
 # RESULT FORMATTING
 # =============================================================================
 
+def _get_field(hit: Dict, field_name: str, default=None):
+    """Get field value from either 'fields' (array format) or '_source' (object format)"""
+    # Try fields format first (arrays from fields parameter)
+    fields = hit.get("fields", {})
+    if field_name in fields:
+        val = fields[field_name]
+        # fields returns arrays, get first value for scalar fields
+        if isinstance(val, list):
+            return val[0] if len(val) == 1 else val
+        return val
+    
+    # Fallback to _source format
+    src = hit.get("_source", {})
+    return src.get(field_name, default)
+
+
+def _get_field_list(hit: Dict, field_name: str) -> list:
+    """Get field as list from either 'fields' or '_source'"""
+    fields = hit.get("fields", {})
+    if field_name in fields:
+        val = fields[field_name]
+        return val if isinstance(val, list) else [val] if val else []
+    
+    src = hit.get("_source", {})
+    val = src.get(field_name, [])
+    return val if isinstance(val, list) else [val] if val else []
+
+
 def format_result(hit: Dict, max_score: float) -> SearchResult:
     """Format a single search result for card UI - streamlined"""
-    src = hit.get("_source", {})
-    
     # Calculate relevance score (0-100)
     raw_score = hit.get("_score", 0)
     score = int((raw_score / max_score) * 100) if max_score > 0 else 0
     score = min(100, max(0, score))  # Clamp to 0-100
     
     # Clean description (truncate for card preview)
-    desc = src.get("description", "") or ""
+    desc = _get_field(hit, "description", "") or ""
     desc = desc.replace("<br />", " ").replace("<br>", " ").replace("\n", " ")
     if len(desc) > 300:
         desc = desc[:300] + "..."
     
     # Build location: "City, Area" format
     loc_parts = []
-    if src.get("location_1"):
-        loc_parts.append(src["location_1"])
-    if src.get("location_2"):
-        loc_parts.append(src["location_2"])
+    loc1 = _get_field(hit, "location_1")
+    loc2 = _get_field(hit, "location_2")
+    if loc1:
+        loc_parts.append(loc1)
+    if loc2:
+        loc_parts.append(loc2)
     location = ", ".join(loc_parts)
     
     # Images
-    images = src.get("src_images", []) or src.get("images", []) or []
-    images = [img for img in images if img and img.startswith("http") and not img.endswith(".svg")]
+    images = _get_field_list(hit, "src_images") or _get_field_list(hit, "images") or []
+    images = [img for img in images if img and isinstance(img, str) and img.startswith("http") and not img.endswith(".svg")]
     
     # Format date nicely
     date_str = None
-    valid_from = src.get("valid_from")
+    valid_from = _get_field(hit, "valid_from")
     if valid_from:
         try:
             dt = datetime.fromisoformat(valid_from.replace("Z", "+00:00"))
@@ -741,30 +774,35 @@ def format_result(hit: Dict, max_score: float) -> SearchResult:
         except:
             date_str = valid_from
     
-    # Extract surface from attributes
-    surface = None
-    attrs = src.get("attributes", {})
-    if isinstance(attrs, dict):
-        surface = attrs.get("Suprafata utila") or attrs.get("Suprafata") or attrs.get("suprafata_utila")
+    # Get surface - try direct field first, then attributes
+    surface = _get_field(hit, "surface")
+    if not surface:
+        attrs = _get_field(hit, "attributes", {})
+        if isinstance(attrs, dict):
+            surface = attrs.get("Suprafata utila") or attrs.get("Suprafata") or attrs.get("suprafata_utila")
+    
+    # Get is_agent value
+    is_agent_val = _get_field(hit, "is_agent", False)
+    is_agency = is_agent_val in (True, "true", "True", 1, "1")
     
     return SearchResult(
         id=hit.get("_id", ""),
-        ad_id=src.get("ad_id"),
-        title=src.get("driver_title") or src.get("name") or "No title",
+        ad_id=_get_field(hit, "ad_id"),
+        title=_get_field(hit, "driver_title") or _get_field(hit, "name") or "No title",
         description=desc,
-        price=src.get("price"),
-        currency=src.get("currency") or "EUR",
+        price=_get_field(hit, "price"),
+        currency=_get_field(hit, "currency") or "EUR",
         location=location,
-        categories=src.get("categories", []) or [],
+        categories=_get_field_list(hit, "categories"),
         surface=surface,
-        phone=src.get("decrypted_phone") or "N/A",
+        phone=_get_field(hit, "decrypted_phone") or "N/A",
         date=date_str,
         images=images[:5],  # Limit to 5 for card
         image_count=len(images),
-        source=src.get("ad_source") or src.get("source"),
-        url=src.get("ad_url"),
+        source=_get_field(hit, "ad_source") or _get_field(hit, "source"),
+        url=_get_field(hit, "ad_url"),
         score=score,
-        is_agency=src.get("is_agent", False),  # Map is_agent -> is_agency for compatibility
+        is_agency=is_agency,
     )
 
 
@@ -775,14 +813,11 @@ def format_result(hit: Dict, max_score: float) -> SearchResult:
 def execute_search(query: Dict) -> Dict:
     """Execute search against OpenSearch"""
     import logging
-    from datetime import datetime
     logger = logging.getLogger("smart-search-api")
     
-    # WORKAROUND: OpenSearch 3.4 bug with knn.derived_source.enabled and multi-index searches
-    # Returns 0 hits when querying multiple indices with _source enabled
-    # Use only today's index for now (single index works correctly)
-    today = datetime.now().strftime("%Y.%m.%d")
-    index_pattern = f"real-estate-{today}"
+    # Search all indices - using "_source": false + "fields" works around OpenSearch 3.4 
+    # knn.derived_source bug (which causes 0 hits with _source on multi-index searches)
+    index_pattern = "real-estate-*"
     
     url = f"{settings.opensearch_url}/{index_pattern}/_search"
     logger.info(f"Executing OpenSearch Query to: {url}")
