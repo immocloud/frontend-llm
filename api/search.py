@@ -617,9 +617,21 @@ def build_opensearch_query(parsed: Dict, size: int = 25, offset: int = 0) -> Dic
     if price_filter:
         must.append({"range": {"price": price_filter}})
     
-    # Keywords
+    # Keywords - These should be OPTIONAL (boost scoring) not REQUIRED
+    # The structured filters (city, rooms, price, transaction) already handle the main constraints
     for kw in parsed.get("keywords", []):
-        must.append({
+        # Skip keywords that are already covered by structured filters
+        if kw.lower() in ["apartament", "apartamente", "inchiriere", "inchiriat", "vanzare", "cumparare"]:
+            continue
+        if parsed.get("city") and parsed["city"].lower() in kw.lower():
+            continue
+        if parsed.get("rooms") and "camer" in kw.lower():
+            continue
+        if parsed.get("price_max") and "euro" in kw.lower():
+            continue
+            
+        # Add as SHOULD (optional boost) not MUST
+        should.append({
             "bool": {
                 "should": [
                     {"match": {"driver_title": {"query": kw, "boost": 2.0}}},
@@ -892,6 +904,7 @@ def search(
     
     # Parse with LLM
     parsed = parse_query_with_llm(user_query, memory)
+    logger.info(f"LLM Parsed: city={parsed.get('city')}, rooms={parsed.get('rooms')}, price_max={parsed.get('price_max')}, keywords={parsed.get('keywords', [])}")
     
     # UI toggle overrides query parsing
     if exclude_agencies_override is not None:
