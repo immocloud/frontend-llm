@@ -658,7 +658,7 @@ def build_opensearch_query(parsed: Dict, size: int = 25, offset: int = 0) -> Dic
     # Exclude Agencies - Move from Python-side to OpenSearch-side
     if parsed.get("exclude_agencies"):
         must_not.append({
-            "term": {"is_agency": "true"}
+            "term": {"is_agent": "true"}
         })
     
     # Build final query
@@ -675,7 +675,7 @@ def build_opensearch_query(parsed: Dict, size: int = 25, offset: int = 0) -> Dic
             "location_1", "location_2", "location_3", "coordinates",
             "ad_url", "ad_id", "categories", "attributes",
             "src_images", "images", "decrypted_phone", "source", "ad_source",
-            "valid_from", "user_name"
+            "valid_from", "user_name", "is_agent"
         ]
     }
     
@@ -752,6 +752,7 @@ def format_result(hit: Dict, max_score: float) -> SearchResult:
         source=src.get("ad_source") or src.get("source"),
         url=src.get("ad_url"),
         score=score,
+        is_agency=src.get("is_agent", False),  # Map is_agent -> is_agency for compatibility
     )
 
 
@@ -893,9 +894,10 @@ def search(
     formatted = [format_result(hit, max_score) for hit in hits]
     
     # Cross-index lookup: enrich with agent info (For UI labels Only)
-    phones = [r.phone for r in formatted]
-    agent_lookup = lookup_agents(phones)
-    formatted = enrich_with_agent_info(formatted, agent_lookup)
+    # NOTE: Disabled - is_agent field now comes directly from main index via Logstash
+    # phones = [r.phone for r in formatted]
+    # agent_lookup = lookup_agents(phones)
+    # formatted = enrich_with_agent_info(formatted, agent_lookup)
     
     # Generate assistant message
     message, message_type = generate_assistant_message(parsed, total, user_query)
