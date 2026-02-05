@@ -868,6 +868,8 @@ def search(
             - True: always exclude agencies  
             - False: always include agencies
     """
+    import logging
+    logger = logging.getLogger("smart-search-api")
     
     # Load memory
     memory = load_memory(user_id, session_id)
