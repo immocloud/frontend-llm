@@ -803,6 +803,7 @@ def format_result(hit: Dict, max_score: float) -> SearchResult:
         url=_get_field(hit, "ad_url"),
         score=score,
         is_agency=is_agency,
+        user_uuid=_get_field(hit, "user_uuid"),
     )
 
 

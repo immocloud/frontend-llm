@@ -20,7 +20,8 @@ class SearchRequest(BaseModel):
 
 class AddAgentRequest(BaseModel):
     """Request to manually adding an agent"""
-    phone: str = Field(..., description="Phone number to blacklist")
+    phone: Optional[str] = Field(None, description="Phone number to blacklist")
+    user_uuid: Optional[str] = Field(None, description="OLX user UUID to blacklist")
     agency_name: str = Field("Manual Report", description="Name of agent/agency")
 
 
@@ -102,6 +103,7 @@ class SearchResult(BaseModel):
     # Seller info (from cross-index agent lookup)
     is_agency: bool = Field(False, description="True if seller is known agent/agency")
     seller_type: str = Field("unknown", description="private, agent, agency, or unknown")
+    user_uuid: Optional[str] = Field(None, description="OLX user UUID for agent reporting")
 
 
 # =============================================================================

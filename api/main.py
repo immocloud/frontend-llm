@@ -378,7 +378,7 @@ async def add_agent_manual(
     user: TokenUser = Depends(get_current_user)
 ):
     """
-    Manually add a phone number to the agents index and update existing listings.
+    Manually add a phone number or OLX user UUID to the agents index and update existing listings.
     Restricted to specific user.
     """
     ALLOWED_USER = "vladxpetrescu@gmail.com"
@@ -387,80 +387,129 @@ async def add_agent_manual(
     if not user.email or user.email.lower() != ALLOWED_USER.lower():
         raise HTTPException(status_code=403, detail="You are not authorized to perform this action.")
     
-    # 2. Validation
-    clean_phone = normalize_phone(request.phone)
-    if not clean_phone:
-        raise HTTPException(status_code=400, detail="Invalid phone number format")
+    # 2. Determine mode: UUID-based (OLX) or phone-based
+    if request.user_uuid:
+        # --- UUID-based agent (OLX) ---
+        user_uuid = request.user_uuid.strip()
+        if not user_uuid:
+            raise HTTPException(status_code=400, detail="Invalid user_uuid")
         
-    # 3. Index into 'agents'
-    try:
-        doc = {
-            "phone": clean_phone,
-            "agency_name": request.agency_name,
-            "type": "agency",
-            "reported_by": user.email,
-            "reported_at": datetime.utcnow().isoformat()
-        }
+        agent_id = f"olx:{user_uuid}"
         
-        # Use phone as ID to enforce uniqueness
-        requests.put(
-            f"{settings.opensearch_url}/agents/_doc/{clean_phone}",
-            json=doc,
-            auth=settings.opensearch_auth,
-            verify=settings.opensearch_verify_ssl,
-            timeout=5
-        )
-        
-        # 4. Trigger update on existing listings
-        # Use update_by_query to find all docs with this phone and set is_agency=true
-        update_query = {
-            "query": {
-                "term": {
-                    "decrypted_phone.keyword": clean_phone
+        try:
+            doc = {
+                "user_uuid": user_uuid,
+                "is_agent": True,
+                "source": "manual",
+                "manually_marked": True,
+                "agency_name": request.agency_name,
+                "reported_by": user.email,
+                "reported_at": datetime.utcnow().isoformat()
+            }
+            
+            requests.put(
+                f"{settings.opensearch_url}/agents/_doc/{agent_id}",
+                json=doc,
+                auth=settings.opensearch_auth,
+                verify=settings.opensearch_verify_ssl,
+                timeout=5
+            )
+            
+            # Update existing OLX listings with this user_uuid
+            update_body = {
+                "query": {
+                    "bool": {
+                        "must": [
+                            {"term": {"user_uuid.keyword": user_uuid}},
+                            {"term": {"ad_source.keyword": "olx"}}
+                        ]
+                    }
+                },
+                "script": {
+                    "source": "ctx._source.is_agent = true",
+                    "lang": "painless"
                 }
-            },
-            "script": {
-                "source": "ctx._source.is_agency = true",
-                "lang": "painless"
             }
-        }
-        
-        # Check if we need keyword or text field. In 'real-estate-*', decrypted_phone is usually text+keyword.
-        # Check mapping or just try 'decrypted_phone' if keyword is not set.
-        # But 'term' query works best on 'keyword'.
-        # Let's try matching both to be safe or just use matching query.
-        
-        # Better query:
-        update_body = {
-            "query": {
-                "match": {"decrypted_phone": clean_phone}
-            },
-            "script": {
-                "source": "ctx._source.is_agency = true",
-                "lang": "painless"
+            
+            resp = requests.post(
+                f"{settings.opensearch_url}/real-estate-*/_update_by_query?conflicts=proceed",
+                json=update_body,
+                auth=settings.opensearch_auth,
+                verify=settings.opensearch_verify_ssl,
+                timeout=30
+            )
+            
+            updated_count = 0
+            if resp.status_code == 200:
+                updated_count = resp.json().get("updated", 0)
+            
+            return {
+                "message": f"OLX agent added successfully. UUID: {user_uuid}",
+                "updated_listings": updated_count,
+                "doc": doc
             }
-        }
-        
-        resp = requests.post(
-            f"{settings.opensearch_url}/real-estate-*/_update_by_query?conflicts=proceed",
-            json=update_body,
-            auth=settings.opensearch_auth,
-            verify=settings.opensearch_verify_ssl,
-            timeout=30 # longer timeout for bulk update
-        )
-        
-        updated_count = 0
-        if resp.status_code == 200:
-            updated_count = resp.json().get("updated", 0)
-        
-        return {
-            "message": f"Agent added successfully. Phone: {clean_phone}",
-            "updated_listings": updated_count,
-            "doc": doc
-        }
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+    
+    elif request.phone:
+        # --- Phone-based agent ---
+        clean_phone = normalize_phone(request.phone)
+        if not clean_phone:
+            raise HTTPException(status_code=400, detail="Invalid phone number format")
+            
+        try:
+            doc = {
+                "phone": clean_phone,
+                "is_agent": True,
+                "source": "manual",
+                "manually_marked": True,
+                "agency_name": request.agency_name,
+                "type": "agency",
+                "reported_by": user.email,
+                "reported_at": datetime.utcnow().isoformat()
+            }
+            
+            requests.put(
+                f"{settings.opensearch_url}/agents/_doc/{clean_phone}",
+                json=doc,
+                auth=settings.opensearch_auth,
+                verify=settings.opensearch_verify_ssl,
+                timeout=5
+            )
+            
+            # Update existing listings with this phone
+            update_body = {
+                "query": {
+                    "match": {"decrypted_phone": clean_phone}
+                },
+                "script": {
+                    "source": "ctx._source.is_agent = true",
+                    "lang": "painless"
+                }
+            }
+            
+            resp = requests.post(
+                f"{settings.opensearch_url}/real-estate-*/_update_by_query?conflicts=proceed",
+                json=update_body,
+                auth=settings.opensearch_auth,
+                verify=settings.opensearch_verify_ssl,
+                timeout=30
+            )
+            
+            updated_count = 0
+            if resp.status_code == 200:
+                updated_count = resp.json().get("updated", 0)
+            
+            return {
+                "message": f"Agent added successfully. Phone: {clean_phone}",
+                "updated_listings": updated_count,
+                "doc": doc
+            }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+    
+    else:
+        raise HTTPException(status_code=400, detail="Either phone or user_uuid must be provided")
 
 
 # =============================================================================
