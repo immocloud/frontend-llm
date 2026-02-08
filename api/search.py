@@ -554,6 +554,9 @@ def build_opensearch_query(parsed: Dict, size: int = 25, offset: int = 0) -> Dic
     should = []
     must_not = []
     
+    # Only show listings from the last 45 days
+    must.append({"range": {"valid_from": {"gte": "now-45d/d"}}})
+    
     # Location
     location = parsed.get("location")
     if location:
@@ -681,7 +684,7 @@ def build_opensearch_query(parsed: Dict, size: int = 25, offset: int = 0) -> Dic
         "location_1", "location_2", "location_3", "coordinates",
         "ad_url", "ad_id", "categories", "attributes",
         "src_images", "images", "decrypted_phone", "source", "ad_source",
-        "valid_from", "user_name", "is_agent", "surface"
+        "valid_from", "user_name", "is_agent", "surface", "user_uuid"
     ]
     
     query = {
