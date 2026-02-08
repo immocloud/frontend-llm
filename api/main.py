@@ -381,10 +381,13 @@ async def add_agent_manual(
     Manually add a phone number or OLX user UUID to the agents index and update existing listings.
     Restricted to specific user.
     """
-    ALLOWED_USER = "vladxpetrescu@gmail.com"
-    
+    ALLOWED_USERS = [
+        "vladxpetrescu@gmail.com",
+        "ancampetrescu@gmail.com",
+    ]
+
     # 1. Auth Check - strict check on email
-    if not user.email or user.email.lower() != ALLOWED_USER.lower():
+    if not user.email or user.email.lower() not in [e.lower() for e in ALLOWED_USERS]:
         raise HTTPException(status_code=403, detail="You are not authorized to perform this action.")
     
     # 2. Determine mode: UUID-based (OLX) or phone-based

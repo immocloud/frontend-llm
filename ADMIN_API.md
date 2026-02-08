@@ -81,8 +81,8 @@ curl -X POST "http://localhost:8000/admin/populate-agents?key=secret-admin-key"
 
 ## 3. Manual Agent Reporting
 
-Allows specific users (currently `vladxpetrescu@gmail.com`) to manually flag a phone number as an agency.
-This immediately adds the number to the `agents` index and updates all existing listings in `real-estate-*`.
+Allows specific users (currently `vladxpetrescu@gmail.com`, `ancampetrescu@gmail.com`) to manually flag a phone number as an agency.
+This immediately adds the number to the `agents` index and updates all existing listings in `real-estate-*`. 
 
 **Endpoint:**
 `POST /admin/add-agent`
